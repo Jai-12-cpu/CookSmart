@@ -42,8 +42,11 @@ export default async function handler(req, res) {
     
     res.status(200).json(parsedData);
 
-  } catch (err) {
-    console.error("Gemini API Error:", err);
-    res.status(500).json({ error: "Failed to generate recipes with Gemini" });
+  } } catch (err) {
+    console.error("Gemini API Error Detail:", err);
+    // This sends the actual error message back to your index.html so you can see it in the browser!
+    res.status(500).json({ 
+      error: "Failed to generate recipes with Gemini", 
+      details: err.message 
+    });
   }
-}
