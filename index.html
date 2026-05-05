@@ -820,7 +820,7 @@ let ingredients = [];
 let prefs = { meal: null, diet: null, cuisine: null, time: null };
 let currentRecipes = [];
 
-// INGREDIENT MANAGEMENT
+// --- INGREDIENT MANAGEMENT ---
 function addIngredient() {
   const input = document.getElementById('ingredientInput');
   const val = input.value.trim();
@@ -842,7 +842,6 @@ function removeIngredient(ing) {
 
 function renderTags() {
   const area = document.getElementById('tagsArea');
-  const hint = document.getElementById('emptyHint');
   if (ingredients.length === 0) {
     area.innerHTML = '<div class="empty-hint" id="emptyHint">No ingredients yet — add some above ↑</div>';
     return;
@@ -856,7 +855,7 @@ function renderTags() {
   `).join('');
 }
 
-// PREFERENCES
+// --- PREFERENCES ---
 function togglePill(btn, group) {
   const container = btn.parentElement;
   container.querySelectorAll('.pref-pill').forEach(p => p.classList.remove('active'));
@@ -868,12 +867,16 @@ function togglePill(btn, group) {
   }
 }
 
-// GENERATE
+// --- GENERATE (GEMINI THINKING MODEL) ---
 async function generateRecipes() {
   if (ingredients.length === 0) {
     alert('Please add at least one ingredient first!');
     return;
   }
+
+  // 1. YOUR API KEY GOES HERE
+  const GEMINI_API_KEY = "PASTE_YOUR_GEMINI_API_KEY_HERE"; 
+  const MODEL_NAME = "gemini-2.0-flash-thinking-exp"; 
 
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
@@ -881,7 +884,7 @@ async function generateRecipes() {
   document.getElementById('resultsArea').innerHTML = `
     <div class="loading-state">
       <div class="loading-dots"><span></span><span></span><span></span></div>
-      <div class="loading-text">Searching your pantry for inspiration…</div>
+      <div class="loading-text">Chef is thinking deeply about your ingredients...</div>
     </div>
   `;
 
@@ -892,66 +895,61 @@ async function generateRecipes() {
     prefs.time && `time: ${prefs.time}`,
   ].filter(Boolean).join(', ');
 
-  const prompt = `You are a creative chef AI. The user has these ingredients: ${ingredients.join(', ')}.
-${prefParts ? `Preferences: ${prefParts}.` : ''}
+  const prompt = `Act as a Michelin-star chef. Analyze these ingredients: ${ingredients.join(', ')}.
+${prefParts ? `Constraints: ${prefParts}.` : ''}
 
-Generate exactly 4 recipe ideas they can make. For each recipe, use primarily the ingredients they have.
+Generate exactly 4 gourmet recipes. Use professional techniques and ensure balanced flavors. 
+Respond ONLY with a valid JSON object. Do not include markdown backticks or "thought" text in the final output.
 
-Respond ONLY with valid JSON (no markdown, no backticks):
+JSON Structure:
 {
   "recipes": [
     {
-      "title": "Recipe Name",
-      "emoji": "🍝",
-      "time": "25 min",
-      "difficulty": "Easy",
-      "servings": 2,
-      "matchPercent": 90,
-      "ingredientsHave": ["ingredient1", "ingredient2"],
-      "ingredientsNeed": ["ingredient3"],
-      "steps": ["Step 1 description", "Step 2 description", "Step 3 description", "Step 4 description"]
+      "title": "String",
+      "emoji": "String",
+      "time": "String",
+      "difficulty": "Easy/Medium/Hard",
+      "servings": Number,
+      "matchPercent": Number,
+      "ingredientsHave": ["item1"],
+      "ingredientsNeed": ["item2"],
+      "steps": ["Step 1", "Step 2"]
     }
   ]
 }`;
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer YOUR_OPENAI_API_KEY"
-  },
-  body: JSON.stringify({
-    model: "gpt-5.3",
-    input: prompt,
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }]
+      })
+    });
 
-    // quality settings
-    temperature: 0.4,
-    max_output_tokens: 700,
-
-    // IMPORTANT → clean JSON output
-    response_format: { type: "json_object" }
-  })
-});
-
-const data = await response.json();
-const text = data.output[0].content[0].text;
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
+    const data = await response.json();
+    
+    // Gemini Thinking models sometimes return markdown or extra text. 
+    // We clean it to ensure JSON.parse works.
+    let rawText = data.candidates[0].content.parts[0].text;
+    let cleanJson = rawText.replace(/```json|```/gi, "").trim();
+    
+    const parsed = JSON.parse(cleanJson);
     currentRecipes = parsed.recipes;
     renderRecipes(parsed.recipes);
   } catch (err) {
+    console.error(err);
     document.getElementById('resultsArea').innerHTML = `
       <div class="error-box">
-        Something went wrong generating recipes. Please check your API key or try again.
+        The kitchen is experiencing a technical glitch. Check your API key or connection.
       </div>
     `;
-    console.error(err);
   }
 
   btn.disabled = false;
 }
 
+// --- RENDER & MODAL ---
 function renderRecipes(recipes) {
   const html = `
     <div class="results-section">
@@ -967,7 +965,7 @@ function renderRecipes(recipes) {
               <div class="recipe-card-title">${r.title}</div>
               <div class="recipe-card-meta">
                 <span>⏱ ${r.time}</span>
-                <span>👤 ${r.servings} servings</span>
+                <span>👤 ${r.servings}</span>
                 <span>📊 ${r.difficulty}</span>
               </div>
               <div class="recipe-match-bar">
@@ -983,7 +981,6 @@ function renderRecipes(recipes) {
   document.getElementById('resultsArea').innerHTML = html;
 }
 
-// MODAL
 function openModal(index) {
   const r = currentRecipes[index];
   document.getElementById('modalEmoji').textContent = r.emoji;
@@ -1003,15 +1000,15 @@ function openModal(index) {
       <li><div class="step-num">${i+1}</div><div>${s}</div></li>
     `).join('')}</ol>
   `;
-  document.getElementById('modal').innerHTML += '';
-  document.getElementById('modalOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-
-  // Re-inject close button
+  
+  // Close button injection
   document.getElementById('modalEmoji').innerHTML = `
     ${r.emoji}
     <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open'); document.body.style.overflow=''">×</button>
   `;
+  
+  document.getElementById('modalOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function closeModal(e) {
