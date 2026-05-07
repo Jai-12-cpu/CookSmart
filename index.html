@@ -687,12 +687,65 @@
   .modal::-webkit-scrollbar-track { background: transparent; }
   .modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
 
+  .api-banner {
+    max-width: 1100px;
+    margin: 0 auto 24px;
+    padding: 0 48px;
+    animation: fadeUp 0.8s ease 0.15s both;
+  }
+  .api-banner-inner {
+    background: var(--card-bg);
+    border: 1.5px solid var(--gold);
+    border-radius: 16px;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .api-banner.saved .api-banner-inner {
+    border-color: var(--olive-light);
+    background: rgba(92,107,58,0.06);
+  }
+  .api-banner-text {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .api-lock { font-size: 22px; }
+  .api-banner-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--charcoal);
+    margin-bottom: 2px;
+  }
+  .api-banner-sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .api-banner-sub a { color: var(--olive); }
+  .api-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .api-saved-msg {
+    font-size: 13px;
+    color: var(--olive);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
   @media (max-width: 768px) {
     header { padding: 20px 24px; }
     .hero { padding: 48px 24px 36px; }
     .main { grid-template-columns: 1fr; padding: 0 24px 40px; }
     .generate-section { padding: 0 24px; }
     .results-section { padding: 0 24px 60px; }
+    .api-banner { padding: 0 24px; }
+    .api-banner-inner { flex-direction: column; align-items: flex-start; }
   }
 </style>
 </head>
@@ -712,6 +765,23 @@
   <div class="hero-eyebrow">AI-Powered Recipe Discovery</div>
   <h1>Turn your pantry into<br><em>tonight's dinner</em></h1>
   <p>Add your ingredients, set your preferences, and let AI craft recipes tailored exactly to what you have on hand.</p>
+</div>
+
+<!-- API KEY BANNER -->
+<div class="api-banner" id="apiBanner">
+  <div class="api-banner-inner">
+    <div class="api-banner-text">
+      <span class="api-lock">🔑</span>
+      <div>
+        <div class="api-banner-title">Enter your Anthropic API key to get started</div>
+        <div class="api-banner-sub">Get one free at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> — your key stays in your browser only</div>
+      </div>
+    </div>
+    <div class="api-input-row">
+      <input type="password" id="apiKeyInput" class="ingredient-input" placeholder="sk-ant-..." style="max-width:320px;" autocomplete="off">
+      <button class="add-btn" onclick="saveApiKey()">Save Key</button>
+    </div>
+  </div>
 </div>
 
 <!-- MAIN PANELS -->
@@ -820,6 +890,29 @@ let ingredients = [];
 let prefs = { meal: null, diet: null, cuisine: null, time: null };
 let currentRecipes = [];
 
+// API KEY
+function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key || !key.startsWith('sk-')) {
+    alert('Please enter a valid Anthropic API key (starts with sk-)');
+    return;
+  }
+  localStorage.setItem('pantry_api_key', key);
+  const banner = document.getElementById('apiBanner');
+  banner.classList.add('saved');
+  banner.querySelector('.api-input-row').innerHTML = `<div class="api-saved-msg">✅ Key saved — you're ready to cook!</div>`;
+  banner.querySelector('.api-banner-title').textContent = 'API key connected';
+}
+
+// Load saved key on startup
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('pantry_api_key');
+  if (saved) {
+    document.getElementById('apiKeyInput').value = saved;
+    saveApiKey();
+  }
+});
+
 // INGREDIENT MANAGEMENT
 function addIngredient() {
   const input = document.getElementById('ingredientInput');
@@ -914,7 +1007,15 @@ Respond ONLY with valid JSON (no markdown, no backticks):
   ]
 }`;
 
-  const API_KEY = "YOUR_API_KEY_HERE";
+  const API_KEY = document.getElementById('apiKeyInput').value.trim() || localStorage.getItem('pantry_api_key') || '';
+
+  if (!API_KEY) {
+    document.getElementById('resultsArea').innerHTML = '';
+    document.getElementById('apiKeyInput').focus();
+    alert('Please enter your Anthropic API key first!');
+    btn.disabled = false;
+    return;
+  }
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
